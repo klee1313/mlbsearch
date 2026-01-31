@@ -217,7 +217,7 @@
                 if (selectedPosition !== 'all') {
                     filtered = filtered.filter(p => {
                         const pos = (p.Position || '').toLowerCase();
-                        if (selectedPosition === 'Catcher') return pos.includes('c') && !pos.includes('cf');
+                        if (selectedPosition === 'Catcher') return pos.includes('c') && !pos.includes('cf') && !pos.includes('rhp') && !pos.includes('lhp');
                         if (selectedPosition === 'First Base') return pos.includes('1b');
                         if (selectedPosition === 'Second Base') return pos.includes('2b');
                         if (selectedPosition === 'Third Base') return pos.includes('3b');
