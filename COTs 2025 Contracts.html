@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLB Contract Search - 2025</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        function App() {
+            const [searchName, setSearchName] = useState('');
+            const [selectedTeam, setSelectedTeam] = useState('all');
+            const [selectedPosition, setSelectedPosition] = useState('all');
+            const [minSal, setMinSal] = useState('');
+            const [maxSal, setMaxSal] = useState('');
+            const [allPlayers, setAllPlayers] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [progress, setProgress] = useState('');
+            const [results, setResults] = useState([]);
+
+            const gistId = '0baaa3c47c409ed38b7f1e0cde41d5cc';
+            const gistHash = 'e06fef21f5b9df5bb5bf72a4ed456ce23382a508';
+
+            const teamFiles = [
+                { team: 'New York Yankees', file: 'COTs%202025%20Data%20-%20Yankees.csv' },
+                { team: 'Boston Red Sox', file: 'redsox.csv' },
+                { team: 'Toronto Blue Jays', file: 'bluejays.csv' },
+                { team: 'Baltimore Orioles', file: 'orioles.csv' },
+                { team: 'Tampa Bay Rays', file: 'COTs%202025%20Data%20-%20Rays.csv' },
+                { team: 'Chicago White Sox', file: 'COTs%202025%20Data%20-%20White%20Sox.csv' },
+                { team: 'Cleveland Guardians', file: 'COTs%202025%20Data%20-%20Guardians.csv' },
+                { team: 'Detroit Tigers', file: 'COTs%202025%20Data%20-%20Tigers.csv' },
+                { team: 'Kansas City Royals', file: 'COTs%202025%20Data%20-%20Royals.csv' },
+                { team: 'Minnesota Twins', file: 'COTs%202025%20Data%20-%20Twins.csv' },
+                { team: 'Houston Astros', file: 'COTs%202025%20Data%20-%20Astros.csv' },
+                { team: 'Los Angeles Angels', file: 'COTs%202025%20Data%20-%20Angels.csv' },
+                { team: 'Oakland Athletics', file: 'COTs%202025%20Data%20-%20Athletics.csv' },
+                { team: 'Seattle Mariners', file: 'COTs%202025%20Data%20-%20Mariners.csv' },
+                { team: 'Texas Rangers', file: 'COTs%202025%20Data%20-%20Rangers.csv' },
+                { team: 'Atlanta Braves', file: 'braves.csv' },
+                { team: 'Miami Marlins', file: 'COTs%202025%20Data%20-%20Marlins.csv' },
+                { team: 'New York Mets', file: 'mets.csv' },
+                { team: 'Philadelphia Phillies', file: 'COTs%202025%20Data%20-%20Phillies.csv' },
+                { team: 'Washington Nationals', file: 'COTs%202025%20Data%20-%20Nationals.csv' },
+                { team: 'Chicago Cubs', file: 'COTs%202025%20Data%20-%20Cubs.csv' },
+                { team: 'Cincinnati Reds', file: 'reds.csv' },
+                { team: 'Milwaukee Brewers', file: 'brewers.csv' },
+                { team: 'Pittsburgh Pirates', file: 'COTs%202025%20Data%20-%20Pirates.csv' },
+                { team: 'St. Louis Cardinals', file: 'COTs%202025%20Data%20-%20Cardinals.csv' },
+                { team: 'Arizona Diamondbacks', file: 'diamondbacks.csv' },
+                { team: 'Colorado Rockies', file: 'COTs%202025%20Data%20-%20Rockies.csv' },
+                { team: 'Los Angeles Dodgers', file: 'COTs%202025%20Data%20-%20Dodgers.csv' },
+                { team: 'San Diego Padres', file: 'COTs%202025%20Data%20-%20Padres.csv' },
+                { team: 'San Francisco Giants', file: 'COTs%202025%20Data%20-%20Giants.csv' }
+            ];
+
+            const divisions = {
+                'AL East': ['Baltimore Orioles', 'Boston Red Sox', 'New York Yankees', 'Tampa Bay Rays', 'Toronto Blue Jays'],
+                'AL Central': ['Chicago White Sox', 'Cleveland Guardians', 'Detroit Tigers', 'Kansas City Royals', 'Minnesota Twins'],
+                'AL West': ['Houston Astros', 'Los Angeles Angels', 'Oakland Athletics', 'Seattle Mariners', 'Texas Rangers'],
+                'NL East': ['Atlanta Braves', 'Miami Marlins', 'New York Mets', 'Philadelphia Phillies', 'Washington Nationals'],
+                'NL Central': ['Chicago Cubs', 'Cincinnati Reds', 'Milwaukee Brewers', 'Pittsburgh Pirates', 'St. Louis Cardinals'],
+                'NL West': ['Arizona Diamondbacks', 'Colorado Rockies', 'Los Angeles Dodgers', 'San Diego Padres', 'San Francisco Giants']
+            };
+
+            function parseCSV(csvText, teamName) {
+                const lines = csvText.split('\n');
+                const players = [];
+                let foundHeader = false;
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    if (!line.trim()) continue;
+
+                    const values = [];
+                    let current = '';
+                    let inQuotes = false;
+
+                    for (let j = 0; j < line.length; j++) {
+                        const char = line[j];
+                        if (char === '"') {
+                            inQuotes = !inQuotes;
+                        } else if (char === ',' && !inQuotes) {
+                            values.push(current);
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    values.push(current);
+
+                    if (values[1] && values[1].trim() === 'Player') {
+                        foundHeader = true;
+                        continue;
+                    }
+
+                    if (!foundHeader) continue;
+
+                    const playerName = values[1] ? values[1].trim() : '';
+
+                    if (!playerName || playerName.length < 3 ||
+                        playerName.includes('Injured') || playerName.includes('40-man') ||
+                        playerName.includes('Pre-arbitration') || playerName.includes('Estimated') ||
+                        playerName.includes('Projected') || playerName.includes('Competitive') ||
+                        playerName.includes('Amount') || playerName.includes('Notes') ||
+                        playerName.includes('History') || playerName.includes('CBT')) {
+                        if (playerName.includes('Injured')) foundHeader = false;
+                        continue;
+                    }
+
+                    let displayName = playerName;
+                    if (playerName.includes(',')) {
+                        const parts = playerName.split(',').map(p => p.trim());
+                        if (parts.length === 2) {
+                            displayName = parts[1] + ' ' + parts[0];
+                        }
+                    }
+
+                    let salary2025 = values[13] ? values[13].trim() : '';
+                    let salaryDisplay = '';
+                    if (salary2025) {
+                        salary2025 = salary2025.replace(/[$,]/g, '');
+                        const num = parseFloat(salary2025);
+                        if (!isNaN(num) && num > 0) {
+                            salaryDisplay = new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: 'USD',
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0
+                            }).format(num);
+                        }
+                    }
+
+                    players.push({
+                        Player: displayName,
+                        OriginalName: playerName,
+                        Position: values[2] ? values[2].trim() : '',
+                        Age: values[6] ? values[6].trim() : '',
+                        Contract: values[11] ? values[11].trim() : '',
+                        Salary2025: salary2025,
+                        SalaryDisplay: salaryDisplay,
+                        Agent: values[9] ? values[9].trim() : '',
+                        Service: values[7] ? values[7].trim() : '',
+                        Team: teamName
+                    });
+                }
+
+                return players;
+            }
+
+            useEffect(() => {
+                async function loadAllData() {
+                    setLoading(true);
+                    const allData = [];
+                    let loaded = 0;
+
+                    for (const tf of teamFiles) {
+                        try {
+                            setProgress(`Loading ${tf.team}... (${loaded + 1}/${teamFiles.length})`);
+                            const url = `https://gist.githubusercontent.com/klee1313/${gistId}/raw/${tf.file}`;
+                            const response = await fetch(url);
+                            const text = await response.text();
+                            const teamPlayers = parseCSV(text, tf.team);
+                            allData.push(...teamPlayers);
+                            loaded++;
+                        } catch (err) {
+                            console.error(`Error loading ${tf.team}:`, err);
+                        }
+                    }
+
+                    setAllPlayers(allData);
+                    setLoading(false);
+                    setProgress('');
+                }
+
+                loadAllData();
+            }, []);
+
+            const positions = useMemo(() => {
+                const posSet = new Set();
+                allPlayers.forEach(p => {
+                    if (p.Position) {
+                        const posList = p.Position.split('-');
+                        posList.forEach(pos => {
+                            const clean = pos.trim().toLowerCase();
+                            if (clean === 'c') posSet.add('Catcher');
+                            else if (clean.includes('1b')) posSet.add('First Base');
+                            else if (clean.includes('2b')) posSet.add('Second Base');
+                            else if (clean.includes('3b')) posSet.add('Third Base');
+                            else if (clean.includes('ss')) posSet.add('Shortstop');
+                            else if (clean.includes('lf')) posSet.add('Left Field');
+                            else if (clean.includes('cf')) posSet.add('Center Field');
+                            else if (clean.includes('rf')) posSet.add('Right Field');
+                            else if (clean.includes('of')) posSet.add('Outfield');
+                            else if (clean.includes('dh')) posSet.add('Designated Hitter');
+                            else if (clean.includes('rhp') || clean.includes('lhp')) posSet.add('Pitcher');
+                        });
+                    }
+                });
+                return ['all', ...Array.from(posSet).sort()];
+            }, [allPlayers]);
+
+            function handleSearch() {
+                let filtered = allPlayers;
+
+                if (selectedTeam !== 'all') {
+                    filtered = filtered.filter(p => p.Team === selectedTeam);
+                }
+
+                if (selectedPosition !== 'all') {
+                    filtered = filtered.filter(p => {
+                        const pos = (p.Position || '').toLowerCase();
+                        if (selectedPosition === 'Catcher') return pos.includes('c') && !pos.includes('cf');
+                        if (selectedPosition === 'First Base') return pos.includes('1b');
+                        if (selectedPosition === 'Second Base') return pos.includes('2b');
+                        if (selectedPosition === 'Third Base') return pos.includes('3b');
+                        if (selectedPosition === 'Shortstop') return pos.includes('ss');
+                        if (selectedPosition === 'Left Field') return pos.includes('lf');
+                        if (selectedPosition === 'Center Field') return pos.includes('cf');
+                        if (selectedPosition === 'Right Field') return pos.includes('rf');
+                        if (selectedPosition === 'Outfield') return pos.includes('of') || pos.includes('lf') || pos.includes('cf') || pos.includes('rf');
+                        if (selectedPosition === 'Designated Hitter') return pos.includes('dh');
+                        if (selectedPosition === 'Pitcher') return pos.includes('rhp') || pos.includes('lhp');
+                        return false;
+                    });
+                }
+
+                if (minSal) {
+                    const min = parseFloat(minSal) * 1000000;
+                    filtered = filtered.filter(p => {
+                        const sal = parseFloat(p.Salary2025 || '0');
+                        return sal >= min;
+                    });
+                }
+
+                if (maxSal) {
+                    const max = parseFloat(maxSal) * 1000000;
+                    filtered = filtered.filter(p => {
+                        const sal = parseFloat(p.Salary2025 || '0');
+                        return sal <= max && sal > 0;
+                    });
+                }
+
+                if (searchName.trim()) {
+                    const searchLower = searchName.toLowerCase().trim();
+                    filtered = filtered.filter(p => {
+                        const displayName = p.Player.toLowerCase();
+                        const originalName = (p.OriginalName || '').toLowerCase();
+                        return displayName.includes(searchLower) || originalName.includes(searchLower);
+                    });
+                }
+
+                filtered.sort((a, b) => {
+                    const aSal = parseFloat(a.Salary2025 || '0') || 0;
+                    const bSal = parseFloat(b.Salary2025 || '0') || 0;
+                    return bSal - aSal;
+                });
+
+                setResults(filtered);
+            }
+
+            function clearAll() {
+                setSearchName('');
+                setSelectedTeam('all');
+                setSelectedPosition('all');
+                setMinSal('');
+                setMaxSal('');
+                setResults([]);
+            }
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="text-6xl mb-4 animate-bounce">⚾</div>
+                            <h2 className="text-2xl font-bold text-white mb-2">Loading Contract Data...</h2>
+                            <p className="text-blue-200">{progress}</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 mb-6">
+                            <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
+                                <span className="text-5xl">⚾</span>
+                                MLB Contract Search - 2025
+                            </h1>
+                            <p className="text-blue-200 mb-2">{allPlayers.length} players from 30 teams</p>
+                            <p className="text-blue-300 text-sm mb-6">2025 Contract Data • Auto-updates from GitHub Gist</p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                                <div className="md:col-span-3">
+                                    <input
+                                        type="text"
+                                        placeholder="Search by player name..."
+                                        value={searchName}
+                                        onChange={(e) => setSearchName(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                                        className="w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-blue-200 border-2 border-white/30 focus:border-blue-400 focus:outline-none"
+                                    />
+                                </div>
+
+                                <select
+                                    value={selectedTeam}
+                                    onChange={(e) => setSelectedTeam(e.target.value)}
+                                    className="px-4 py-3 rounded-lg bg-white/20 text-white border-2 border-white/30 focus:border-blue-400 focus:outline-none"
+                                >
+                                    <option value="all" className="bg-slate-800">All Teams</option>
+                                    {Object.entries(divisions).map(([div, teams]) => (
+                                        <optgroup key={div} label={div} className="bg-slate-800 font-bold">
+                                            {teams.map(t => (
+                                                <option key={t} value={t} className="bg-slate-800">{t}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
+
+                                <select
+                                    value={selectedPosition}
+                                    onChange={(e) => setSelectedPosition(e.target.value)}
+                                    className="px-4 py-3 rounded-lg bg-white/20 text-white border-2 border-white/30 focus:border-blue-400 focus:outline-none"
+                                >
+                                    {positions.map(p => (
+                                        <option key={p} value={p} className="bg-slate-800">
+                                            {p === 'all' ? 'All Positions' : p}
+                                        </option>
+                                    ))}
+                                </select>
+
+                                <div className="flex gap-2">
+                                    <input
+                                        type="number"
+                                        placeholder="Min Salary ($M)"
+                                        value={minSal}
+                                        onChange={(e) => setMinSal(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-blue-200 border-2 border-white/30 focus:border-blue-400 focus:outline-none"
+                                    />
+                                    <input
+                                        type="number"
+                                        placeholder="Max Salary ($M)"
+                                        value={maxSal}
+                                        onChange={(e) => setMaxSal(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-blue-200 border-2 border-white/30 focus:border-blue-400 focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleSearch}
+                                    className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold"
+                                >
+                                    Search
+                                </button>
+                                <button
+                                    onClick={clearAll}
+                                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold"
+                                >
+                                    Clear All
+                                </button>
+                                <div className="flex-1"></div>
+                                <div className="text-blue-200 text-sm flex items-center">
+                                    {results.length} results
+                                </div>
+                            </div>
+                        </div>
+
+                        {results.length > 0 ? (
+                            <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-6">
+                                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                                    {results.map((player, idx) => (
+                                        <div key={idx} className="bg-white/20 backdrop-blur rounded-lg p-5 hover:bg-white/30 transition-all">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <h3 className="text-2xl font-bold text-white">{player.Player}</h3>
+                                                    <p className="text-blue-200 font-semibold text-lg">{player.Team}</p>
+                                                </div>
+                                                {player.Position && (
+                                                    <span className="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-semibold">
+                                                        {player.Position}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {player.SalaryDisplay && (
+                                                <div className="bg-gradient-to-r from-green-500/30 to-blue-500/30 border-2 border-green-400 rounded-lg p-4 mb-4">
+                                                    <p className="text-green-200 text-sm uppercase tracking-wide mb-1">2025 Salary</p>
+                                                    <p className="text-white font-bold text-4xl">{player.SalaryDisplay}</p>
+                                                </div>
+                                            )}
+
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                {player.Contract && (
+                                                    <div className="bg-white/10 rounded p-3 col-span-2">
+                                                        <p className="text-blue-200 text-xs uppercase tracking-wide">Contract</p>
+                                                        <p className="text-white font-bold">{player.Contract}</p>
+                                                    </div>
+                                                )}
+                                                {player.Age && (
+                                                    <div className="bg-white/10 rounded p-3">
+                                                        <p className="text-blue-200 text-xs uppercase tracking-wide">Age</p>
+                                                        <p className="text-white font-semibold">{player.Age}</p>
+                                                    </div>
+                                                )}
+                                                {player.Agent && (
+                                                    <div className="bg-white/10 rounded p-3 col-span-2">
+                                                        <p className="text-blue-200 text-xs uppercase tracking-wide">Agent</p>
+                                                        <p className="text-white font-semibold">{player.Agent}</p>
+                                                    </div>
+                                                )}
+                                                {player.Service && (
+                                                    <div className="bg-white/10 rounded p-3">
+                                                        <p className="text-blue-200 text-xs uppercase tracking-wide">Service</p>
+                                                        <p className="text-white font-semibold">{player.Service}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-12 text-center">
+                                <div className="text-6xl mb-4">🔍</div>
+                                <h3 className="text-2xl font-bold text-white mb-3">Ready to Search</h3>
+                                <p className="text-blue-200">Select filters and click Search to view results</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(React.createElement(App), document.getElementById('root'));
+    </script>
+</body>
+</html>
